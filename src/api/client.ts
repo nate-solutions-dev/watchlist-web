@@ -6,8 +6,8 @@ const VITE_API_URL = import.meta.env.VITE_API_URL as string | undefined;
 const API_URL: string = import.meta.env.DEV ? "" : (VITE_API_URL ?? "");
 
 if (!import.meta.env.DEV && !VITE_API_URL) {
-  throw new Error(
-    "VITE_API_URL is not set. Define it in .env.local before starting the app."
+  console.error(
+    "VITE_API_URL is not set. Add it to Vercel environment variables and redeploy."
   );
 }
 

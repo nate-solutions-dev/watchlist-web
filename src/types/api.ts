@@ -81,3 +81,40 @@ export type UpdateUserRequest = Partial<{
   avatar_url: string | null;
   bio: string | null;
 }>;
+
+export type WatchlistStatus =
+  | "plan_to_watch"
+  | "watching"
+  | "completed"
+  | "dropped"
+  | "on_hold";
+
+export type WatchlistItem = {
+  watch_list_id: string;
+  user_data_id: string;
+  tmdb_id: number;
+  media_type: MediaType;
+  movie_title: string;
+  poster_url: string;
+  genres: string[];
+  status: WatchlistStatus;
+  rating: number | null;
+  review: string | null;
+  current_season: number | null;
+  current_episode: number | null;
+  watched_at: string | null;
+};
+
+export type AddToWatchlistRequest = {
+  tmdb_id: number;
+  media_type: MediaType;
+  status: WatchlistStatus;
+};
+
+export type UpdateWatchlistRequest = Partial<{
+  status: WatchlistStatus;
+  rating: number;
+  review: string;
+  current_season: number;
+  current_episode: number;
+}>;

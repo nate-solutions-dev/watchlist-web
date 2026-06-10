@@ -1,26 +1,123 @@
 import { useRef, useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
   Star, LogOut, Film, ChevronLeft, ChevronRight,
   Play, Search, Menu, BookMarked, X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/providers/AuthContext";
 import { getTrending, getPopular } from "@/api/discover";
+import { addToWatchlist } from "@/api/watchlist";
+import { searchTitles } from "@/api/search";
+import { APIError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import type { TitleResult } from "@/types/api";
+
+// ─── SearchBar ────────────────────────────────────────────────────────────────
+
+function SearchBar() {
+  const [inputValue, setInputValue] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [focused, setFocused] = useState(false);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setDebouncedQuery(inputValue);
+    }, 400);
+    return () => clearTimeout(id);
+  }, [inputValue]);
+
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["search", debouncedQuery],
+    queryFn: () => searchTitles(debouncedQuery),
+    enabled: debouncedQuery.trim().length >= 2,
+    staleTime: 60_000,
+  });
+
+  const showDropdown = focused && inputValue.trim().length >= 2;
+
+  const handleSelect = (result: TitleResult) => {
+    setInputValue("");
+    setDebouncedQuery("");
+    setFocused(false);
+    navigate(`/title/${result.tmdb_id}?type=${result.media_type}`);
+  };
+
+  return (
+    <div className="hidden md:flex flex-1 max-w-sm ml-auto relative">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+      <input
+        type="search"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setTimeout(() => setFocused(false), 150)}
+        placeholder="Search movies & shows…"
+        className="w-full rounded-lg bg-secondary pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+      />
+      {showDropdown && (
+        <div className="absolute top-full left-0 right-0 mt-1 bg-background border border-border rounded-lg shadow-xl z-50 overflow-hidden">
+          {isLoading && (
+            <div className="px-4 py-3 text-sm text-muted-foreground">Searching…</div>
+          )}
+          {isError && (
+            <div className="px-4 py-3 text-sm text-destructive">Search failed</div>
+          )}
+          {!isLoading && !isError && data && data.length === 0 && (
+            <div className="px-4 py-3 text-sm text-muted-foreground">No results found</div>
+          )}
+          {!isLoading && !isError && data && data.length > 0 && (
+            <ul>
+              {data.map((result) => (
+                <li key={`${result.tmdb_id}-${result.media_type}`}>
+                  <button
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleSelect(result)}
+                    className="flex items-center gap-3 w-full px-3 py-2 text-left hover:bg-secondary transition-colors"
+                  >
+                    <div className="shrink-0 w-6 h-9 rounded overflow-hidden bg-secondary">
+                      {result.poster_url ? (
+                        <img
+                          src={result.poster_url}
+                          alt={result.title}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full">
+                          <Film className="h-3 w-3 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{result.title}</p>
+                      <p className="text-xs text-muted-foreground">{result.year || "—"}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary capitalize">
+                      {result.media_type}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 const NAV_LINKS = [
-  { label: "Home" },
-  { label: "Trending" },
-  { label: "Popular" },
-  { label: "My Watchlist" },
+  { label: "Home", href: "/dashboard" },
+  { label: "My Watchlist", href: "/watchlist" },
 ];
 
 function Header() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -35,6 +132,7 @@ function Header() {
           {NAV_LINKS.map((link) => (
             <button
               key={link.label}
+              onClick={() => navigate(link.href)}
               className="rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
             >
               {link.label}
@@ -42,14 +140,7 @@ function Header() {
           ))}
         </nav>
 
-        <div className="hidden md:flex flex-1 max-w-sm ml-auto relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <input
-            type="search"
-            placeholder="Search movies & shows…"
-            className="w-full rounded-lg bg-secondary pl-10 pr-4 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-        </div>
+        <SearchBar />
 
         <div className="flex items-center gap-3 ml-auto md:ml-4">
           <span className="hidden sm:block text-sm text-muted-foreground">{user?.username}</span>
@@ -75,7 +166,7 @@ function Header() {
           {NAV_LINKS.map((link) => (
             <button
               key={link.label}
-              onClick={() => setMobileOpen(false)}
+              onClick={() => { navigate(link.href); setMobileOpen(false); }}
               className="block w-full text-left px-6 py-3 text-sm text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
             >
               {link.label}
@@ -124,6 +215,16 @@ function HeroCarousel({ movies }: { movies: TitleResult[] }) {
   const goToDetail = (m: TitleResult) =>
     navigate(`/title/${m.tmdb_id}?type=${m.media_type}`);
 
+  const { mutate: addToList, isPending } = useMutation({
+    mutationFn: addToWatchlist,
+    onSuccess: () => {
+      toast.success("Added to watchlist");
+    },
+    onError: (err) => {
+      toast.error(err instanceof APIError ? err.message : "Failed to add to watchlist");
+    },
+  });
+
   return (
     <section className="relative w-full h-[400px] md:h-[600px] overflow-hidden bg-background">
       {heroImage && (
@@ -152,9 +253,17 @@ function HeroCarousel({ movies }: { movies: TitleResult[] }) {
               <Play className="h-4 w-4 fill-current" />
               View Details
             </Button>
-            <Button size="lg" variant="outline" className="gap-2 border-border/60 hover:bg-secondary">
+            <Button
+              size="lg"
+              variant="outline"
+              className="gap-2 border-border/60 hover:bg-secondary"
+              disabled={isPending}
+              onClick={() =>
+                addToList({ tmdb_id: movie.tmdb_id, media_type: movie.media_type, status: "plan_to_watch" })
+              }
+            >
               <BookMarked className="h-4 w-4" />
-              Add to Watchlist
+              {isPending ? "Adding…" : "Add to Watchlist"}
             </Button>
           </div>
         </div>
