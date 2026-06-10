@@ -1,7 +1,10 @@
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Star, Clock, Tv, BookMarked, Film } from "lucide-react";
+import { toast } from "sonner";
 import { getTitleDetail } from "@/api/titles";
+import { addToWatchlist } from "@/api/watchlist";
+import { APIError } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import type { MediaType } from "@/types/api";
 
@@ -43,11 +46,24 @@ export function TitleDetailPage() {
   const mediaType = (searchParams.get("type") ?? "movie") as MediaType;
   const id = Number(tmdbId);
 
+  const queryClient = useQueryClient();
+
   const { data, isLoading, isError } = useQuery({
     queryKey: ["title", id, mediaType],
     queryFn: () => getTitleDetail(id, mediaType),
     enabled: !!id && id > 0,
     staleTime: 10 * 60 * 1000,
+  });
+
+  const { mutate: addToList, isPending } = useMutation({
+    mutationFn: addToWatchlist,
+    onSuccess: () => {
+      toast.success("Added to watchlist");
+      void queryClient.invalidateQueries({ queryKey: ["watchlist"] });
+    },
+    onError: (err) => {
+      toast.error(err instanceof APIError ? err.message : "Failed to add to watchlist");
+    },
   });
 
   if (isLoading) return <DetailSkeleton />;
@@ -157,9 +173,15 @@ export function TitleDetailPage() {
 
             {/* CTA */}
             <div className="flex gap-3 mt-1">
-              <Button className="gap-2">
+              <Button
+                className="gap-2"
+                disabled={isPending}
+                onClick={() =>
+                  addToList({ tmdb_id: data.tmdb_id, media_type: data.media_type, status: "plan_to_watch" })
+                }
+              >
                 <BookMarked className="h-4 w-4" />
-                Add to Watchlist
+                {isPending ? "Adding…" : "Add to Watchlist"}
               </Button>
             </div>
           </div>
