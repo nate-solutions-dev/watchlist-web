@@ -1,0 +1,69 @@
+Stack: Vite + React 18 + TypeScript + Tailwind v4 + shadcn/ui + React Router v6 + TanStack Query v5
+Backend: Go API at the URL in VITE_API_URL env var, JWT in Authorization: Bearer <token> header
+Response format from backend: { "data": ..., "error": ... }
+
+## Architecture
+- src/api/ — API client functions, one file per resource (auth.ts, watchlist.ts, tmdb.ts)
+- src/components/ — reusable UI components
+- src/components/ui/ — shadcn primitives (don't manually edit, regenerate via CLI)
+- src/hooks/ — custom React hooks
+- src/lib/ — utilities, helpers
+- src/pages/ — page-level components, one per route
+- src/providers/ — React Context providers (auth, etc.)
+- src/types/ — TypeScript type definitions
+
+## Code Organization
+- When ADDING new functions/hooks to an EXISTING file, append at the bottom unless tightly coupled to an existing function (then place immediately after).
+- When CREATING a new file, organize logically (exports first, then helpers, then types if inline).
+- One default export per page/component file. Named exports for utilities.
+
+## Data Provenance Comments
+When data is passed through 2+ component layers, or comes from a hook whose origin isn't obvious at the call site, add a comment at the destination:
+  // src: <component or hook> via <intermediate layers if relevant>
+Examples:
+  // src: useWatchlistQuery (TanStack Query, fetches GET /watchlist)
+  // src: AuthContext.user via App > Layout > Header
+  // src: parent SearchPage, passed as 'result' prop
+Skip for data defined in the same file or obviously one layer up.
+
+## TypeScript
+- Strict mode (no implicit any, no implicit returns).
+- Define types for every API request/response in src/types/api.ts.
+- Prefer `type` for unions and primitives, `interface` for object shapes.
+- Never use `any` without a // TODO: type this properly comment.
+
+## API Client
+- All backend calls go through src/api/ functions.
+- Components NEVER call fetch directly — they call hooks (which call API functions).
+- Centralize JWT attachment in src/api/client.ts (the fetch wrapper).
+- On 401 response, clear localStorage auth_token and redirect to /login.
+
+## Auth
+- JWT stored in localStorage under key "auth_token".
+- AuthProvider exposes: user, isAuthenticated, login(), logout(), register().
+- Protected routes wrap with a <RequireAuth> component that redirects to /login.
+
+## State
+- Server state (data from backend): TanStack Query useQuery/useMutation, NEVER useState.
+- Client state (modal open, form input): useState or Context.
+- Never duplicate server state in client state — read directly from useQuery.
+
+## Styling
+- Tailwind utility classes only. No external CSS files except index.css for base.
+- Use shadcn/ui components for primitives. Don't write custom Button/Input/Dialog from scratch.
+- Use cn() from lib/utils.ts for conditional class merging.
+
+## What NOT to do
+- Never call fetch directly from a component.
+- Never put JWT in URL params or component props.
+- Never store passwords on the FE.
+- Never use Redux, MobX, Zustand, Recoil — Context + useState is enough.
+- Never use class components — function components and hooks only.
+- Never introduce a new dependency without confirming with the developer first.
+- Never expose backend error messages directly to UI — wrap them in user-friendly messages.
+
+## Delivery
+- Show all diffs before applying.
+- For new files, briefly explain what they do.
+- Match existing file patterns when adding to them.
+- If you create a new pattern, explicitly note it and explain why.
